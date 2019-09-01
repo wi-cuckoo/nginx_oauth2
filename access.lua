@@ -1,0 +1,1 @@
+ngx.exit(ngx.HTTP_BAD_REQUEST)
