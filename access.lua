@@ -1,6 +1,7 @@
 local domain = ngx.var.oauth_domain or ngx.var.host
 local token_secret = ngx.var.oauth_token_secret or 'notsosecret'
 local login_uri = '/_oauth/login'
+local cache = ngx.shared.user
 
 local function is_authorized()
     local login = ngx.unescape_uri(ngx.var.cookie_OAuthLogin)
@@ -18,6 +19,14 @@ local function is_authorized()
         ngx.log(ngx.ERR, "User " .. login .. " has a bad token")
         return false
     end
+
+    -- fetch cache
+    local value, flags = cache:get(login)
+    if not value then
+        return false
+    end
+    ngx.log(ngx.ERR, "cache get " .. login .. " is: " .. value)
+    ngx.req.set_header("X-USERINFO", value)
 
     ngx.log(ngx.ERR, login .. " is authorized")
     return true

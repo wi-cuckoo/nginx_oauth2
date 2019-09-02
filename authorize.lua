@@ -1,11 +1,10 @@
 local json = require("cjson")
 
+local cache = ngx.shared.user
 local uri_args = ngx.req.get_uri_args()
 local client_id = ngx.var.gitlab_client_id
 local client_secret = ngx.var.gitlab_client_secret
 local redirect_url = ngx.var.gitlab_redirect_url
-local scope = ngx.var.oauth_scope or 'api'
-local valid_org = ngx.var.oauth_org
 local token_secret = ngx.var.oauth_token_secret or 'notsosecret'
 local proxy_api_uri = '/_oauth/api/'
 local access_token_uri = '/_oauth/access_token'
@@ -20,7 +19,7 @@ local function exit(err)
     return ngx.exit(ngx.HTTP_FORBIDDEN)
 end
 
-local function handle_subrequest_error(response)
+local function check_subrequest_error(response)
     if not response then
         return "failed"
     end
@@ -44,7 +43,7 @@ local function request_access_token(code)
                 redirect_uri=redirect_url
             }
         })
-    err = handle_subrequest_error(res)
+    err = check_subrequest_error(res)
     if err then
         return exit("Got error during access token request: " .. err)
     else
@@ -53,19 +52,18 @@ local function request_access_token(code)
     end
 end
 
-local function provider_api_request(api_uri, token)
+local function dispatch_api_request(api_uri, token)
     local api_request_uri = proxy_api_uri .. api_uri
     ngx.log(ngx.ERR, 'Making subrequest to ' .. api_request_uri .. " with token " .. token)
 
-    ngx.req.set_header('Authorization', "bearer " .. token)
+    ngx.req.set_header('Authorization', "Bearer " .. token)
     local api_response = ngx.location.capture(api_request_uri)
-    err = handle_subrequest_error(api_response)
+    err = check_subrequest_error(api_response)
     if err then
         return exit("Got error during request to " .. api_uri .. ": " .. err)
-    else
-        ngx.log(ngx.ERR, 'api response body: ' .. api_response.body)
-        return json.decode(api_response.body)
     end
+    ngx.log(ngx.ERR, 'api response body: ' .. api_response.body)
+    return json.decode(api_response.body)
 end
 
 local function profile(access_token)
@@ -75,11 +73,8 @@ local function profile(access_token)
 
     ngx.log(ngx.ERR, "Validating access token")
 
-    local profile = provider_api_request('user', access_token)
-    login = profile["username"]
-
-    local token = ngx.encode_base64(ngx.hmac_sha1(token_secret, domain .. login))
-    return login, token
+    local profile = dispatch_api_request('user', access_token)
+    return profile
 end
 
 local function authorize()
@@ -91,9 +86,10 @@ local function authorize()
     end
 
     local response = request_access_token(uri_args["code"])
-    access_token = response["access_token"]
-
-    local login, token = profile(access_token)
+    
+    local profile = profile(response["access_token"])
+    local login = profile["username"]
+    local token = ngx.encode_base64(ngx.hmac_sha1(token_secret, domain .. login))
     if not token then
         return exit("Failed to authenticate request")
     end
@@ -104,8 +100,17 @@ local function authorize()
       "OAuthAccessToken=" .. ngx.escape_uri(token) .. cookie_tail .. expiry,
     }
 
-    for index, cookie in pairs(cookies) do
-      ngx.log(ngx.ERR, "Setting cookie " .. cookie .. " " .. index)
+    -- set cache
+    local userinfo = {
+        username=login,
+        uid=profile["id"],
+        email=profile["email"],
+        avatar_url=profile["avatar_url"],
+        nickname=profile["name"]
+    }
+    local succ, err, forcible = cache:set(login, json.encode(userinfo))
+    if not succ then
+        return exit("Fail cache user: " .. err)
     end
 
     ngx.header["Set-Cookie"] = cookies
