@@ -114,9 +114,9 @@ local function authorize()
     end
 
     ngx.header["Set-Cookie"] = cookies
-    local redirect = uri_args['target_uri'] or '/'
-    ngx.log(ngx.ERR, "Redirecting to " .. redirect)
-    return ngx.redirect(redirect)
+    local origin = ngx.unescape_uri(ngx.var.cookie_OAuthOrigin) or "/"
+    ngx.log(ngx.ERR, "Redrecting to " .. origin)
+    return ngx.redirect(origin)
 end
 
 authorize()

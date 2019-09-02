@@ -1,6 +1,7 @@
 local domain = ngx.var.oauth_domain or ngx.var.host
 local token_secret = ngx.var.oauth_token_secret or 'notsosecret'
 local login_uri = '/_oauth/login'
+local cookie_tail = "; Domain=" .. domain .. '; HttpOnly; Path=/'
 local cache = ngx.shared.user
 
 local function is_authorized()
@@ -46,5 +47,7 @@ local function redirect_to_login(target_uri)
 end
 
 if not is_authorized() then
+    local expiry = "; Max-Age=" .. (ngx.time() + 60*60)
+    ngx.header["Set-Cookie"] = {"OAuthOrigin=" .. ngx.escape_uri(ngx.var.request_uri) .. cookie_tail .. expiry}
     redirect_to_login(target_url())
 end
