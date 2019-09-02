@@ -37,17 +37,8 @@ local function target_url()
     return ngx.var.scheme .. '://' .. ngx.var.host .. ngx.var.request_uri
 end
 
-local function redirect_to_login(target_uri)
-    local login_args = { target_uri=target_uri or '/' }
-    local encoded_login_args = ngx.encode_args(login_args)
-    -- i.e. http://my_oauth_url/_oauth/login?target_uri=/
-    local login_uri_with_args = login_uri .. '?' .. encoded_login_args
-    ngx.log(ngx.ERR, "Redirecting to " .. login_uri_with_args)
-    ngx.redirect(login_uri_with_args)
-end
-
 if not is_authorized() then
-    local expiry = "; Max-Age=" .. (ngx.time() + 60*60)
-    ngx.header["Set-Cookie"] = {"OAuthOrigin=" .. ngx.escape_uri(ngx.var.request_uri) .. cookie_tail .. expiry}
-    redirect_to_login(target_url())
+    local expiry = "; Max-Age=" .. (ngx.time() + 12*60*60)
+    ngx.header["Set-Cookie"] = {"OAuthOrigin=" .. ngx.escape_uri(ngx.req.get_headers()["Referer"] or "/") .. cookie_tail .. expiry}
+    ngx.redirect(login_uri)
 end
