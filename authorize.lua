@@ -94,18 +94,30 @@ local function authorize()
         return exit("Failed to authenticate request")
     end
 
-    local expiry = "; Max-Age=" .. (ngx.time() + 60*60)
+    local expiry = "; Max-Age=" .. (ngx.time() + 24*60*60)
     local cookies = {
       "OAuthLogin=" .. ngx.escape_uri(login) .. cookie_tail .. expiry,
       "OAuthAccessToken=" .. ngx.escape_uri(token) .. cookie_tail .. expiry,
     }
 
     -- set cache
+    local uid = 0
+    local ids = profile["identities"]    
+    if table.getn(ids) > 0 then
+        for k, item in ipairs(ids) do
+            if item["provider"] == 'OA' then
+                uid = tonumber(item["extern_uid"])
+                break
+            end
+        end
+    end
+
     local userinfo = {
         username=login,
-        uid=profile["id"],
+        uid=uid,
+        gid=profile["id"],
         email=profile["email"],
-        avatar_url=profile["avatar_url"],
+        avatar=profile["avatar_url"],
         nickname=profile["name"]
     }
     local succ, err, forcible = cache:set(login, json.encode(userinfo))
