@@ -38,7 +38,7 @@ local function target_url()
 end
 
 if not is_authorized() then
-    local expiry = "; Max-Age=" .. (ngx.time() + 12*60*60)
+    local expiry = "; Max-Age=60"
     ngx.header["Set-Cookie"] = {"OAuthOrigin=" .. target_url() .. cookie_tail .. expiry}
     ngx.redirect(login_uri)
 end

@@ -94,7 +94,7 @@ local function authorize()
         return exit("Failed to authenticate request")
     end
 
-    local expiry = "; Max-Age=" .. (ngx.time() + 24*60*60)
+    local expiry = "; Max-Age=" .. 24*60*60
     local cookies = {
       "OAuthLogin=" .. ngx.escape_uri(login) .. cookie_tail .. expiry,
       "OAuthAccessToken=" .. ngx.escape_uri(token) .. cookie_tail .. expiry,
